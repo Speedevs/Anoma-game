@@ -73,7 +73,6 @@
       transition: all 0.2s;
     }
 
-    /* Highlight effect */
     .tile:hover {
       border: 2px solid yellow;
       box-shadow: 0 0 10px red;
@@ -85,13 +84,23 @@
     }
 
     #message {
-  font-size: 22px;
-  margin-top: 15px;
-  font-weight: bold;
-}
+      font-size: 22px;
+      margin-top: 15px;
+      font-weight: bold;
+    }
 
+    @keyframes bounceFlash {
+      0%, 100% { transform: scale(1); color: green; }
+      25% { transform: scale(1.2); color: limegreen; }
+      50% { transform: scale(0.9); color: darkgreen; }
+      75% { transform: scale(1.1); color: greenyellow; }
+    }
 
-    /* Right side guide image */
+    .winMessage {
+      animation: bounceFlash 1s infinite;
+      font-size: 26px;
+    }
+
     .guide {
       text-align: center;
     }
@@ -106,6 +115,32 @@
       font-weight: bold;
       color: red;
       margin-top: 10px;
+    }
+
+    /* Leaderboard Styles */
+    #leaderboard {
+      margin-top: 20px;
+      padding: 10px;
+      border: 3px solid red;
+      border-radius: 10px;
+      background: white;
+      color: black;
+      font-size: 16px;
+      max-width: 400px;
+    }
+
+    #leaderboard h2 {
+      margin-bottom: 10px;
+      color: red;
+    }
+
+    #leaderboard ol {
+      padding-left: 20px;
+      text-align: left;
+    }
+
+    #leaderboard li {
+      margin: 4px 0;
     }
   </style>
 </head>
@@ -127,6 +162,7 @@
         <option value="20">Easy</option>
         <option value="50">Medium</option>
         <option value="100">Hard</option>
+        <option value="200">Extreme</option>
       </select>
 
       <label for="imageSelect">Image: </label>
@@ -134,7 +170,6 @@
         <option value="mage.png">Mage 1</option>
         <option value="mage2.png">Mage 2</option>
         <option value="mage3.png">Mage 3</option>
-		<option value="mage4.png">Shrimpers</option>
       </select>
 
       <button id="reset">Shuffle</button>
@@ -146,6 +181,11 @@
 
     <div id="puzzle"></div>
     <div id="message"></div>
+
+    <div id="leaderboard">
+      <h2>🏆 Leaderboard</h2>
+      <ol id="leaderboardList"></ol>
+    </div>
   </div>
 
   <div class="guide">
@@ -162,6 +202,7 @@
     const timerDisplay = document.getElementById("timer");
     const movesDisplay = document.getElementById("moves");
     const guideImg = document.getElementById("guideImg");
+    const leaderboardList = document.getElementById("leaderboardList");
 
     let size = 3;
     let tiles = [];
@@ -175,6 +216,7 @@
       tiles = [];
       puzzle.innerHTML = "";
       message.textContent = "";
+      message.classList.remove("winMessage");
       timer = 0;
       moves = 0;
       updateStats();
@@ -187,7 +229,6 @@
       puzzle.style.gridTemplateColumns = `repeat(${size}, 100px)`;
       puzzle.style.gridTemplateRows = `repeat(${size}, 100px)`;
 
-      // match guide image to puzzle size
       guideImg.style.width = `${size * 100}px`;
       guideImg.style.height = `${size * 100}px`;
 
@@ -267,24 +308,25 @@
       render();
     }
 
-function checkWin() {
-  for (let i = 0; i < tiles.length; i++) {
-    const tile = tiles[i];
-    if (tile.classList.contains("empty")) continue;
-    const correctRow = tile.dataset.row;
-    const correctCol = tile.dataset.col;
-    const currentRow = Math.floor(i / size);
-    const currentCol = i % size;
-    if (correctRow != currentRow || correctCol != currentCol) {
-      return false;
-    }
-  }
-  clearInterval(timerInterval);
-  message.style.color = "green";
-  message.textContent = `😀 You Win! Time: ${timer}s | Moves: ${moves}`;
-  return true;
-}
+    function checkWin() {
+      for (let i = 0; i < tiles.length; i++) {
+        const tile = tiles[i];
+        if (tile.classList.contains("empty")) continue;
+        const correctRow = tile.dataset.row;
+        const correctCol = tile.dataset.col;
+        const currentRow = Math.floor(i / size);
+        const currentCol = i % size;
+        if (correctRow != currentRow || correctCol != currentCol) {
+          return false;
+        }
+      }
+      clearInterval(timerInterval);
+      message.classList.add("winMessage");
+      message.innerHTML = `✨ You distinguished Mage from Anoma! You finally won ✨<br>⏱ ${timer}s | 🎮 ${moves} moves`;
 
+      saveToLeaderboard(timer, moves);
+      return true;
+    }
 
     function startTimer() {
       timerInterval = setInterval(() => {
@@ -298,7 +340,37 @@ function checkWin() {
       movesDisplay.textContent = moves;
     }
 
-    // Keyboard arrow controls
+    // Leaderboard functions
+    function saveToLeaderboard(time, moves) {
+      let leaderboard = JSON.parse(localStorage.getItem("mageLeaderboard")) || [];
+      const record = {
+        time,
+        moves,
+        grid: `${size}x${size}`,
+        difficulty: difficultySelect.options[difficultySelect.selectedIndex].text,
+        image: imageSelect.options[imageSelect.selectedIndex].text,
+        date: new Date().toLocaleString()
+      };
+
+      leaderboard.push(record);
+
+      leaderboard.sort((a, b) => a.time - b.time || a.moves - b.moves);
+      leaderboard = leaderboard.slice(0, 5);
+
+      localStorage.setItem("mageLeaderboard", JSON.stringify(leaderboard));
+      renderLeaderboard();
+    }
+
+    function renderLeaderboard() {
+      let leaderboard = JSON.parse(localStorage.getItem("mageLeaderboard")) || [];
+      leaderboardList.innerHTML = "";
+      leaderboard.forEach((entry, i) => {
+        const li = document.createElement("li");
+        li.textContent = `${i+1}. ${entry.grid}, ${entry.difficulty}, ${entry.image} → ⏱ ${entry.time}s, 🎮 ${entry.moves} moves`;
+        leaderboardList.appendChild(li);
+      });
+    }
+
     document.addEventListener("keydown", e => {
       let targetIndex = emptyIndex;
       if (e.key === "ArrowUp" && emptyIndex + size < size * size) {
@@ -318,13 +390,34 @@ function checkWin() {
       }
     });
 
+    // Swipe controls
+    let touchStartX, touchStartY;
+    puzzle.addEventListener("touchstart", e => {
+      const touch = e.touches[0];
+      touchStartX = touch.clientX;
+      touchStartY = touch.clientY;
+    });
+
+    puzzle.addEventListener("touchend", e => {
+      const touch = e.changedTouches[0];
+      let dx = touch.clientX - touchStartX;
+      let dy = touch.clientY - touchStartY;
+
+      if (Math.abs(dx) > Math.abs(dy)) {
+        if (dx > 30) document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
+        if (dx < -30) document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft" }));
+      } else {
+        if (dy > 30) document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown" }));
+        if (dy < -30) document.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowUp" }));
+      }
+    });
+
     document.getElementById("reset").addEventListener("click", createTiles);
     imageSelect.addEventListener("change", createTiles);
 
     // Start game
     createTiles();
+    renderLeaderboard();
   </script>
-  <h1 style="text-align: right; color: white;">Anoma</h1>
-
 </body>
 </html>
